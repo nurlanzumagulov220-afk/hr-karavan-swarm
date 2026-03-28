@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: hr
+      POSTGRES_PASSWORD: hrpass
+      POSTGRES_DB: hr_karavan
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+    ports:
+      - "5432:5432"
+
+  chromadb:
+    image: chromadb/chroma:latest
+    volumes:
+      - chromadata:/chroma/chroma
+    ports:
+      - "8001:8000"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://hr:hrpass@postgres/hr_karavan
+      CHROMA_URL: http://chromadb:8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - chromadb
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  chromadata:
