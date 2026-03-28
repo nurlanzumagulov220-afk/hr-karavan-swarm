@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR-Karavan Swarm - Демо</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        textarea, input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            font-family: inherit;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.02); }
+        .result {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            border-left: 4px solid #667eea;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .good { background: #d4edda; color: #155724; }
+        .medium { background: #fff3cd; color: #856404; }
+        .bad { background: #f8d7da; color: #721c24; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f0f0f0;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 HR-Karavan Swarm</h1>
+        <div class="subtitle">Совет Биев — оценка и генерация целей по SMART</div>
+        
+        <div class="grid">
+            <div class="card">
+                <h2>📊 SMART-оценка цели</h2>
+                <textarea id="goalText" rows="3" placeholder="Введите текст цели..."></textarea>
+                <input type="text" id="role" placeholder="Должность (например: Инженер-разработчик)">
+                <button onclick="evaluateGoal()">Оценить SMART</button>
+                <div id="evaluateResult" class="result"></div>
+            </div>
+            
+            <div class="card">
+                <h2>⚡ Генерация целей</h2>
+                <input type="text" id="genRole" placeholder="Должность">
+                <input type="text" id="genDept" placeholder="Подразделение">
+                <button onclick="generateGoals()">Сгенерировать цели</button>
+                <div id="generateResult" class="result"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📈 Дашборд руководителя</h2>
+            <input type="text" id="deptId" placeholder="ID подразделения (IT, HR, Finance)" value="IT">
+            <button onclick="loadDashboard()">Показать дашборд</button>
+            <div id="dashboardResult" class="result"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        async function evaluateGoal() {
+            const goalText = document.getElementById('goalText').value;
+            const role = document.getElementById('role').value;
+            if (!goalText) { alert('Введите текст цели'); return; }
+            const resultDiv = document.getElementById('evaluateResult');
+            resultDiv.innerHTML = '⏳ Загрузка...';
+            try {
+                const response = await fetch(`${API_URL}/evaluate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal_text: goalText, role: role })
+                });
+                const data = await response.json();
+                let html = `<strong>SMART-индекс: ${data.smart_index}</strong><br><br>`;
+                for (const [key, value] of Object.entries(data.criteria)) {
+                    const scoreClass = value.score >= 0.7 ? 'good' : (value.score >= 0.4 ? 'medium' : 'bad');
+                    html += `<span class="score-badge ${scoreClass}">${key.toUpperCase()}: ${value.score}</span> `;
+                }
+                html += `<br><br><strong>📝 Рекомендация:</strong> ${data.feedback}`;
+                html += `<br><br><strong>✨ Улучшенная формулировка:</strong> ${data.reformulation}`;
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Ошибка: ${error.message}. Убедитесь, что сервер запущен на порту 8000.`;
+            }
+        }
+        
+        async function generateGoals() {
+            const role = document.getElementById('genRole').value;
+            const dept = document.getElementById('genDept').value;
+            if (!role) { alert('Введите должность'); return; }
+            const resultDiv = document.getElementById('generateResult');
+            resultDiv.innerHTML = '⏳ Генерация...';
+            try {
+                const response = await fetch(`${API_URL}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employee_role: role, department: dept, top_k: 3 })
+                });
+                const data = await response.json();
+                let html = '<strong>Предложенные цели:</strong><br><br>';
+                data.goals.forEach((goal, i) => {
+                    html += `<strong>${i+1}. ${goal.goal_text}</strong><br>`;
+                    html += `📄 Источник: ${goal.source_title}<br>`;
+                    html += `📖 Цитата: "${goal.source_fragment}"<br><br>`;
+                });
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+        
+        async function loadDashboard() {
+            const deptId = document.getElementById('deptId').value;
+            const resultDiv = document.getElementById('dashboardResult');
+            resultDiv.innerHTML = '⏳ Загрузка...';
+            try {
+                const response = await fetch(`${API_URL}/dashboard/${deptId}`);
+                const data = await response.json();
+                let html = `<strong>📊 Департамент: ${data.department_id}</strong><br>`;
+                html += `📈 Средний SMART-индекс: ${data.avg_smart_index}<br>`;
+                html += `🎯 Доля стратегических целей: ${(data.strategic_alignment_rate * 100).toFixed(1)}%<br>`;
+                html += `📋 Всего целей: ${data.total_goals}<br><br>`;
+                html += `<strong>⚠️ Проблемы:</strong><br>`;
+                data.top_issues.forEach(issue => { html += `• ${issue}<br>`; });
+                html += `<br><strong>👥 Сотрудники:</strong><br>`;
+                html += `<table><tr><th>Сотрудник</th><th>Целей</th><th>SMART</th><th>Статус</th></tr>`;
+                data.employees.forEach(emp => {
+                    const status = emp.needs_attention ? '🔴 Требует внимания' : (emp.avg_smart_index >= 0.8 ? '🟢 Хорошо' : '🟡 Средний');
+                    html += `<tr><td>${emp.name}</td><td>${emp.goal_count}</td><td>${emp.avg_smart_index}</td><td>${status}</td></tr>`;
+                });
+                html += `</table>`;
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
